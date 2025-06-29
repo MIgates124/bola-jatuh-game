@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bola Jatuh Tangkap - Background Transparan</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      background: transparent;
+      border: 2px solid #333;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <audio id="catchSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const sound = document.getElementById("catchSound");
+
+    const gameWidth = canvas.width;
+    const gameHeight = canvas.height;
+
+    let paddle = {
+      width: 100,
+      height: 20,
+      x: gameWidth / 2 - 50,
+      y: gameHeight - 30,
+      defaultWidth: 100
+    };
+
+    let score = 0;
+    let isGameWon = false;
+    let isPaused = false;
+    let winScale = 1;
+    let particles = [];
+
+    let balls = [spawnBall("+1", "yellow", 3)];
+
+    const ballTypes = {
+      "1": { score: -1, color: "red" },
+      "2": { score: -5, color: "white" },
+      "3": { score: -10, color: "brown" },
+      "4": { score: -50, color: "orange" },
+      "5": { score: -100, color: "darkred" },
+      "6": { score: 5, color: "green" },
+      "7": { score: 10, color: "blue" },
+      "8": { score: 50, color: "purple" },
+      "9": { score: 100, color: "pink" },
+      "0": { score: 1000, color: "deeppink" }
+    };
+
+    function spawnBall(text, color, speed = 3) {
+      return {
+        text: text,
+        color: color,
+        radius: 15,
+        x: Math.random() * (gameWidth - 30) + 15,
+        y: -Math.random() * 200,
+        speed: speed
+      };
+    }
+
+    function createParticles(x, y, color) {
+      for (let i = 0; i < 10; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          dx: (Math.random() - 0.5) * 4,
+          dy: (Math.random() - 0.5) * 4,
+          radius: 2 + Math.random() * 3,
+          color: color,
+          life: 30
+        });
+      }
+    }
+
+    function updateAndDrawParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+        p.life--;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      paddle.x = mouseX - paddle.width / 2;
+    });
+
+    canvas.addEventListener("touchmove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      paddle.x = touchX - paddle.width / 2;
+      e.preventDefault();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const key = e.key.toLowerCase();
+
+      if (key === "b") {
+        paddle.width = (paddle.width === paddle.defaultWidth) ? paddle.defaultWidth * 2 : paddle.defaultWidth;
+      }
+
+      if (ballTypes[key]) {
+        const data = ballTypes[key];
+        let text = (data.score > 0 ? "+" : "") + data.score;
+        balls.push(spawnBall(text, data.color));
+      }
+
+      if (key === "p") {
+        isPaused = !isPaused;
+      }
+
+      if (key === "r") {
+        score = 0;
+        isGameWon = false;
+        isPaused = false;
+        winScale = 1;
+        balls = [spawnBall("+1", "yellow", 3)];
+        paddle.width = paddle.defaultWidth;
+      }
+    });
+
+    function drawPaddle() {
+      ctx.fillStyle = "#1565c0";
+      ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+    }
+
+    function drawBalls() {
+      for (let ball of balls) {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color;
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.fillStyle = "#000";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(ball.text, ball.x, ball.y + 4);
+      }
+    }
+
+    function drawHUD() {
+      ctx.fillStyle = "#000";
+      ctx.font = "16px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("Skor Kamu: " + score, 10, 40);
+
+      if (isGameWon) {
+        winScale += 0.01;
+        ctx.save();
+        ctx.translate(gameWidth / 2, gameHeight / 2);
+        ctx.scale(winScale, winScale);
+        ctx.fillStyle = "green";
+        ctx.font = "24px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("🎉 Kamu Menang! 🎉", 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function updateBalls() {
+      if (isGameWon) return;
+
+      for (let ball of balls) {
+        ball.y += ball.speed;
+
+        if (
+          ball.y + ball.radius >= paddle.y &&
+          ball.x >= paddle.x &&
+          ball.x <= paddle.x + paddle.width
+        ) {
+          let value = parseInt(ball.text);
+          score += value;
+          sound.currentTime = 0;
+          sound.play();
+          createParticles(ball.x, ball.y, ball.color);
+
+          if (score >= 1000) {
+            isGameWon = true;
+            return;
+          }
+
+          if (ball.color === "yellow") {
+            ball.y = -ball.radius;
+            ball.x = Math.random() * (gameWidth - 30) + 15;
+          } else {
+            balls.splice(balls.indexOf(ball), 1);
+          }
+        }
+
+        if (ball.y > gameHeight + ball.radius) {
+          if (ball.color === "yellow") {
+            ball.y = -ball.radius;
+            ball.x = Math.random() * (gameWidth - 30) + 15;
+          } else {
+            balls.splice(balls.indexOf(ball), 1);
+          }
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, gameWidth, gameHeight);
+      drawPaddle();
+      drawBalls();
+      updateAndDrawParticles();
+      drawHUD();
+    }
+
+    function gameLoop() {
+      if (!isPaused && !isGameWon) {
+        updateBalls();
+      }
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
